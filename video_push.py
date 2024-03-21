@@ -15,14 +15,15 @@ height = int(cap.get(4))
 
 def video_push():
     command = ['ffmpeg',
-               '-y', '-an',
+               '-y',
+               '-an',
                '-f', 'rawvideo',
                '-vcodec', 'rawvideo',
                '-pix_fmt', 'bgr24',  # 像素格式
                '-s', "{}x{}".format(width, height),
                '-r', str(fps),
                '-i', '-',
-               '-vcodec', "h264_nvenc",
+               '-vcodec', "libx264",
                '-pix_fmt', 'yuv420p',
                '-g', '1',
                '-b:v', "4000k",
@@ -33,15 +34,19 @@ def video_push():
 
     pipe1 = subprocess.Popen(command, shell=False, stdin=subprocess.PIPE)
 
-    while True:  # 循环播放
-        for _ in range(int(cap.get(7))):
-            t0 = time.time()
-            ret, img = cap.read()
-            if not ret:
-                break
-            pipe1.stdin.write(img.tobytes())
-
-            time.sleep(1 / fps - (time.time() - t0))  # 需要根据帧率进行等待
+    try:
+        while True:  # 循环播放
+            for _ in range(int(cap.get(7))):
+                t0 = time.time()
+                ret, img = cap.read()
+                if not ret:
+                    break
+                pipe1.stdin.write(img.tobytes())
+                wait = 1 / fps - (time.time() - t0)
+                if wait > 0:
+                    time.sleep(1 / fps - (time.time() - t0))  # 需要根据帧率进行等待
+    finally:
+        pipe1.terminate()
 
 
 def audio_push():
@@ -50,24 +55,28 @@ def audio_push():
 
     command = ['ffmpeg',  # linux不用指定
                '-f', 's16le',
-               '-y', '-vn',
+               '-y',
+               '-vn',
                '-acodec', 'pcm_s16le',
                '-i', '-',
                '-ac', '1',
-               '-ar', 44100,
-               "-rtmp_buffer", "100",
+               '-ar', '44100',
+               "-rtmp_buffer", '100',
                '-acodec', 'aac',
                '-f', 'flv',  # flv rtsp
                push_url_audio]  # rtsp rtmp
 
     pipe2 = subprocess.Popen(command, shell=False, stdin=subprocess.PIPE)
 
-    wav_frame_num = int(16000 / fps)  # 这里需要注意的是，fps要保证能被整除，不然后续需要做额外处理
-    while True:  # 循环播放
-        for i in range(int(cap.get(7))):
-            speech = speech_array[i * wav_frame_num:(i + 1) * wav_frame_num]
-            pipe2.stdin.write(speech.tobytes())
+    wav_frame_num = int(44100 / fps)  # 这里需要注意的是，fps要保证能被整除，不然后续需要做额外处理
+    try:
+        while True:  # 循环播放
+            for i in range(int(cap.get(7))):
+                speech = speech_array[i * wav_frame_num:(i + 1) * wav_frame_num]
+                pipe2.stdin.write(speech.tobytes())
+    finally:
+        pipe2.terminate()
 
 
 if __name__ == '__main__':
-    video_push()
+    audio_push()

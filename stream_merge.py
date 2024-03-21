@@ -4,8 +4,8 @@ import threading
 import video_push
 
 if __name__ == '__main__':
-    video_thread = threading.Thread(video_push.video_push())
-    audio_thread = threading.Thread(video_push.audio_push())
+    video_thread = threading.Thread(target=video_push.video_push)
+    audio_thread = threading.Thread(target=video_push.audio_push)
 
     video_thread.start()
     audio_thread.start()
